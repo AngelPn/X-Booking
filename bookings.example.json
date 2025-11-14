@@ -1,0 +1,18 @@
+[
+	{
+		"netid": "hashimkarim",
+		"password": "m9C!BG!3Ezh&tLEi",
+		"date": "2025-11-17",
+		"times": ["15:00", "16:00"],
+		"location": "Fitness",
+		"retry_interval": 60
+	},
+	{
+		"netid": "hashimkarim",
+		"password": "m9C!BG!3Ezh&tLEi",
+		"date": "2025-11-17",
+		"times": ["15:00"],
+		"location": "X1",
+		"retry_interval": 60
+	}
+]

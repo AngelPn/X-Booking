@@ -21,6 +21,74 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.keys import Keys
 import argparse
 import sys
+import json
+from multiprocessing import Pool, Manager
+from functools import partial
+
+
+def load_bookings_from_json(filepath):
+    """
+    Load multiple booking configurations from a JSON file.
+    
+    Args:
+        filepath (str): Path to the JSON file containing booking configurations
+        
+    Returns:
+        list: List of booking dictionaries with keys: netid, password, date, times, location, retry_interval
+        
+    Raises:
+        FileNotFoundError: If the file doesn't exist
+        json.JSONDecodeError: If the file contains invalid JSON
+        ValueError: If the JSON structure is invalid
+    """
+    try:
+        with open(filepath, 'r') as f:
+            bookings = json.load(f)
+            
+        if not isinstance(bookings, list):
+            raise ValueError("JSON file must contain an array of booking objects")
+        
+        # Validate each booking entry
+        required_fields = ['netid', 'password', 'date', 'times']
+        for idx, booking in enumerate(bookings):
+            for field in required_fields:
+                if field not in booking:
+                    raise ValueError(f"Booking entry {idx} missing required field: {field}")
+            
+            # Set defaults for optional fields
+            booking.setdefault('location', 'Fitness')
+            booking.setdefault('retry_interval', 60)
+            
+            # Ensure times is a list
+            if isinstance(booking['times'], str):
+                booking['times'] = [booking['times']]
+            
+        return bookings
+    
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Bookings file not found: {filepath}")
+    except json.JSONDecodeError as e:
+        raise json.JSONDecodeError(f"Invalid JSON in bookings file: {e.msg}", e.doc, e.pos)
+
+
+def is_multi_booking_mode():
+    """
+    Check if multi-booking mode is enabled via environment variable.
+    
+    Returns:
+        bool: True if MULTI_BOOKING=true in environment
+    """
+    return os.getenv('MULTI_BOOKING', 'false').lower() in ['true', '1', 'yes']
+
+
+def get_bookings_file_path():
+    """
+    Get the path to the bookings JSON file from environment variable.
+    
+    Returns:
+        str: Path to bookings file, defaults to './bookings.json'
+    """
+    return os.getenv('MULTI_BOOKING_FILE', './bookings.json')
 
 
 def find_chrome_binary():
@@ -187,7 +255,7 @@ def find_chrome_binary():
     return None
 
 
-def login_x(target_date, desired_times, retry_interval, location="Fitness"):
+def login_x(target_date, desired_times, retry_interval, location="Fitness", user_data_dir=None):
     """
     Try to book fitness slots at the specified times on the target date.
 
@@ -197,6 +265,7 @@ def login_x(target_date, desired_times, retry_interval, location="Fitness"):
                             Format: ["09:00", "10:30", "12:00"]
         retry_interval: Interval to wait before retrying
         location (str): Location to book - "Fitness", "X1", or "X3"
+        user_data_dir (str): Optional Chrome user data directory for isolated sessions
     """
     # Format date for the date picker
     date_str = target_date.strftime("%Y-%m-%d")
@@ -213,6 +282,10 @@ def login_x(target_date, desired_times, retry_interval, location="Fitness"):
     browser_binary = find_chrome_binary()
     if browser_binary:
         chrome_options.binary_location = browser_binary
+    
+    # Add user data directory for isolated sessions (multi-booking)
+    if user_data_dir:
+        chrome_options.add_argument(f"--user-data-dir={user_data_dir}")
     
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
@@ -725,7 +798,153 @@ class BookingGUI:
         self.root.mainloop()
 
 
+def execute_booking_for_user(booking_config, user_data_dir_base="/tmp/chrome_booking"):
+    """
+    Execute a booking for a single user in an isolated browser session.
+    
+    Args:
+        booking_config (dict): Booking configuration with netid, password, date, times, location, retry_interval
+        user_data_dir_base (str): Base directory for user data directories
+        
+    Returns:
+        dict: Result with keys: netid, success, message, error (if any)
+    """
+    netid = booking_config['netid']
+    user_data_dir = f"{user_data_dir_base}_{netid}"
+    
+    result = {
+        'netid': netid,
+        'success': False,
+        'message': '',
+        'location': booking_config.get('location', 'Fitness'),
+        'date': booking_config['date'],
+        'times': booking_config['times']
+    }
+    
+    try:
+        # Temporarily set environment variables for this booking
+        original_netid = os.environ.get('TU_USERNAME')
+        original_password = os.environ.get('TU_PASSWORD')
+        
+        os.environ['TU_USERNAME'] = booking_config['netid']
+        os.environ['TU_PASSWORD'] = booking_config['password']
+        
+        print(f"[{netid}] Starting booking for {booking_config['location']} on {booking_config['date']} at {booking_config['times']}")
+        
+        # Parse date
+        target_date = datetime.strptime(booking_config['date'], '%Y-%m-%d')
+        
+        # Execute booking
+        success = login_x(
+            target_date=target_date,
+            desired_times=booking_config['times'],
+            retry_interval=booking_config.get('retry_interval', 60),
+            location=booking_config.get('location', 'Fitness'),
+            user_data_dir=user_data_dir
+        )
+        
+        result['success'] = success
+        result['message'] = 'Booking successful' if success else 'No available slots'
+        print(f"[{netid}] Result: {result['message']}")
+        
+    except Exception as e:
+        result['success'] = False
+        result['message'] = f'Error: {str(e)}'
+        result['error'] = traceback.format_exc()
+        print(f"[{netid}] Failed: {str(e)}")
+    
+    finally:
+        # Restore original environment variables
+        if original_netid:
+            os.environ['TU_USERNAME'] = original_netid
+        elif 'TU_USERNAME' in os.environ:
+            del os.environ['TU_USERNAME']
+            
+        if original_password:
+            os.environ['TU_PASSWORD'] = original_password
+        elif 'TU_PASSWORD' in os.environ:
+            del os.environ['TU_PASSWORD']
+        
+        # Clean up user data directory
+        try:
+            if os.path.exists(user_data_dir):
+                shutil.rmtree(user_data_dir)
+                print(f"[{netid}] Cleaned up session directory")
+        except Exception as cleanup_error:
+            print(f"[{netid}] Warning: Could not clean up session directory: {cleanup_error}")
+    
+    return result
+
+
+def run_multi_booking(bookings_file):
+    """
+    Execute multiple bookings in parallel for different users.
+    
+    Args:
+        bookings_file (str): Path to JSON file with booking configurations
+        
+    Returns:
+        list: List of result dictionaries for each booking
+    """
+    print(f"Loading bookings from: {bookings_file}")
+    bookings = load_bookings_from_json(bookings_file)
+    
+    print(f"\n{'='*80}")
+    print(f"MULTI-BOOKING MODE: Processing {len(bookings)} booking(s)")
+    print(f"{'='*80}\n")
+    
+    # Display booking summary
+    for idx, booking in enumerate(bookings, 1):
+        print(f"{idx}. User: {booking['netid']}")
+        print(f"   Location: {booking['location']}")
+        print(f"   Date: {booking['date']}")
+        print(f"   Times: {', '.join(booking['times'])}")
+        print()
+    
+    print(f"{'='*80}")
+    print("Starting parallel execution...")
+    print(f"{'='*80}\n")
+    
+    # Execute bookings in parallel using multiprocessing
+    with Pool(processes=min(len(bookings), 4)) as pool:  # Max 4 parallel bookings
+        results = pool.map(execute_booking_for_user, bookings)
+    
+    # Display results summary
+    print(f"\n{'='*80}")
+    print("MULTI-BOOKING RESULTS")
+    print(f"{'='*80}\n")
+    
+    success_count = 0
+    for idx, result in enumerate(results, 1):
+        status = "✓ SUCCESS" if result['success'] else "✗ FAILED"
+        print(f"{idx}. {result['netid']} - {result['location']} - {status}")
+        print(f"   Message: {result['message']}")
+        if not result['success'] and 'error' in result:
+            print(f"   Error details: {result['error'][:200]}...")
+        print()
+        
+        if result['success']:
+            success_count += 1
+    
+    print(f"{'='*80}")
+    print(f"Summary: {success_count}/{len(results)} bookings successful")
+    print(f"{'='*80}\n")
+    
+    return results
+
+
 def main():
+    # Load environment variables first
+    load_dotenv()
+    
+    # Check for multi-booking mode first
+    if is_multi_booking_mode():
+        bookings_file = get_bookings_file_path()
+        results = run_multi_booking(bookings_file)
+        # Return True if at least one booking succeeded
+        return any(r['success'] for r in results)
+    
+    # Single booking mode (original behavior)
     parser = argparse.ArgumentParser(description='Book fitness slots')
     parser.add_argument('--date', type=str, required=True,
                         help='Date in YYYY-MM-DD format')

@@ -56,3 +56,6 @@ package-lock.json
 # Debug files
 booking_error_*.png
 booking_error_*.html
+
+# Multi-booking credentials (keep these secret!)
+bookings.json

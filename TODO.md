@@ -106,19 +106,19 @@
 
 ### 5.1: Implement multi-booking infrastructure
 
-- [ ] Add environment variables to .env.example:
-  - [ ] MULTI_BOOKING=false
-  - [ ] MULTI_BOOKING_FILE=./bookings.json
-- [ ] Create bookings.json schema example:
+- [x] Add environment variables to .env.example:
+  - [x] MULTI_BOOKING=false
+  - [x] MULTI_BOOKING_FILE=./bookings.json
+- [x] Create bookings.json schema example:
   ```json
   [
   	{ "netid": "user1", "password": "pass1" },
   	{ "netid": "user2", "password": "pass2" }
   ]
   ```
-- [ ] Add JSON credentials loader function in main.py
-- [ ] Add mode detection logic (single vs multi)
-- [ ] **COMMIT**: `feat: add multi-booking configuration structure`
+- [x] Add JSON credentials loader function in main.py
+- [x] Add mode detection logic (single vs multi)
+- [x] **COMMIT**: `feat: add multi-booking configuration structure`
 
 ### 5.2: Implement parallel booking with session management
 

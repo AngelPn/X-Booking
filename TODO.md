@@ -63,14 +63,14 @@
 
 ### 4.1: Update date picker selector and error handling
 
-- [ ] Update date picker CSS selector to `input[type='date'].form-control`
-- [ ] Add redirect wait after login: `wait.until(lambda d: 'x.tudelft.nl' in d.current_url)`
-- [ ] Add enhanced error logging with traceback
-- [ ] Add screenshot capture on error to project directory
-- [ ] Add HTML dump on error to project directory
-- [ ] Add current URL logging on error
-- [ ] Test: Run booking script and verify error logs
-- [ ] **COMMIT**: `fix: update date picker selector and add comprehensive error handling`
+- [x] Update date picker CSS selector to `input[type='date'].form-control`
+- [x] Add redirect wait after login: `wait.until(lambda d: 'x.tudelft.nl' in d.current_url)`
+- [x] Add enhanced error logging with traceback
+- [x] Add screenshot capture on error to project directory
+- [x] Add HTML dump on error to project directory
+- [x] Add current URL logging on error
+- [x] Test: Run booking script and verify error logs
+- [x] **COMMIT**: `fix: update date picker selector and add comprehensive error handling`
 
 ### 4.2: Extend booking capabilities for X1 & X3
 
@@ -190,6 +190,6 @@
 
 ## Current Status
 
-**Phase**: 3.2 - Implement smart browser detection (COMPLETE)  
-**Last Commit**: Ready to commit Phase 3.2  
-**Next Step**: Commit Phase 3.2, then start Phase 4.1 (fix booking script date picker)
+**Phase**: 4.1 - Update date picker selector and error handling (COMPLETE)  
+**Last Commit**: Ready to commit Phase 4.1  
+**Next Step**: Commit Phase 4.1, then start Phase 4.2 (extend booking for X1 & X3)

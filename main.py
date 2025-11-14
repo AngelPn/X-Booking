@@ -7,6 +7,7 @@ from tkcalendar import Calendar  # You'll need to add this to requirements.txt
 import subprocess
 import shutil
 import platform
+import traceback
 
 import numpy as np
 
@@ -262,10 +263,16 @@ def login_x(target_date, desired_times, retry_interval):
             login_button.click()
             print("Clicked login button")
 
+            # Wait for redirect to x.tudelft.nl after login
+            print("Waiting for redirect to x.tudelft.nl...")
+            wait.until(lambda d: 'x.tudelft.nl' in d.current_url)
+            print(f"Redirected to: {driver.current_url}")
+
             # Wait for date picker to be present and interactable
+            # Updated selector to match the actual form control
             date_picker = wait.until(
                 EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, "input.datepicker-input[type='date']"))
+                    (By.CSS_SELECTOR, "input[type='date'].form-control"))
             )
             # Wait until it's not disabled/readonly
             wait.until(lambda d: date_picker.get_attribute("readonly") is None)
@@ -415,10 +422,44 @@ def login_x(target_date, desired_times, retry_interval):
                 driver.quit()
                 return False
             else:
-                print(f"An error occurred: {str(e)}")
+                # Enhanced error logging
+                print("=" * 80)
+                print(f"ERROR OCCURRED: {str(e)}")
+                print("=" * 80)
+                print("\nFull traceback:")
+                traceback.print_exc()
+                print("\n" + "=" * 80)
+                
+                # Get current URL for debugging
+                try:
+                    current_url = driver.current_url
+                    print(f"Current URL: {current_url}")
+                except Exception:
+                    print("Could not retrieve current URL")
+                
+                # Save screenshot to project directory
+                try:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    screenshot_path = f"booking_error_{timestamp}.png"
+                    driver.save_screenshot(screenshot_path)
+                    print(f"Screenshot saved to: {os.path.abspath(screenshot_path)}")
+                except Exception as screenshot_error:
+                    print(f"Could not save screenshot: {screenshot_error}")
+                
+                # Save HTML dump to project directory
+                try:
+                    html_path = f"booking_error_{timestamp}.html"
+                    with open(html_path, 'w', encoding='utf-8') as f:
+                        f.write(driver.page_source)
+                    print(f"HTML dump saved to: {os.path.abspath(html_path)}")
+                except Exception as html_error:
+                    print(f"Could not save HTML dump: {html_error}")
+                
+                print("=" * 80)
+                
             try:
                 driver.quit()
-            except:
+            except Exception:
                 pass
 
             return False

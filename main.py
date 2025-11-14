@@ -187,7 +187,7 @@ def find_chrome_binary():
     return None
 
 
-def login_x(target_date, desired_times, retry_interval):
+def login_x(target_date, desired_times, retry_interval, location="Fitness"):
     """
     Try to book fitness slots at the specified times on the target date.
 
@@ -195,6 +195,8 @@ def login_x(target_date, desired_times, retry_interval):
         target_date (datetime): Date to book for (time component is ignored)
         desired_times (list): List of times to try booking in order of preference
                             Format: ["09:00", "10:30", "12:00"]
+        retry_interval: Interval to wait before retrying
+        location (str): Location to book - "Fitness", "X1", or "X3"
     """
     # Format date for the date picker
     date_str = target_date.strftime("%Y-%m-%d")
@@ -321,27 +323,50 @@ def login_x(target_date, desired_times, retry_interval):
                 # Wait for the page to update with the new date
                 time.sleep(1)
 
-                # Type "Fitness" into the filter input
+                # Map location to checkbox ID and filter text
+                location_map = {
+                    "Fitness": ("tagCheckbox28", "Fitness"),
+                    "X1": ("tagCheckbox147", "X1"),
+                    "X3": ("tagCheckbox149", "X3"),
+                }
+                
+                if location not in location_map:
+                    raise ValueError(f"Invalid location: {location}. Must be one of: Fitness, X1, X3")
+                
+                checkbox_id, filter_text = location_map[location]
+
+                # Type the location into the filter input
                 filter_input = wait.until(
                     EC.presence_of_element_located((By.ID, 'tag-filterinput')))
                 filter_input.clear()
-                filter_input.send_keys("Fitness")
-                print("Sent Fitness")
+                filter_input.send_keys(filter_text)
+                print(f"Sent {filter_text} to filter")
+                time.sleep(0.5)  # Wait for filter to process
 
-                # Select the Fitness checkbox
-                fitness_checkbox = wait.until(
-                    EC.element_to_be_clickable((By.ID, 'tagCheckbox28')))
-                fitness_checkbox.click()
-                print("Clicked Fitness checkbox")
+                # For X1 and X3, we need to expand the "All spaces" dropdown first
+                if location in ["X1", "X3"]:
+                    # Find and click the "All spaces" dropdown to expand it
+                    spaces_dropdown = wait.until(
+                        EC.element_to_be_clickable((By.XPATH, 
+                            "//li[@tabindex='0']//span[contains(text(), 'All spaces')]")))
+                    spaces_dropdown.click()
+                    print("Expanded 'All spaces' dropdown")
+                    time.sleep(0.5)
+
+                # Select the location checkbox
+                location_checkbox = wait.until(
+                    EC.element_to_be_clickable((By.ID, checkbox_id)))
+                location_checkbox.click()
+                print(f"Clicked {location} checkbox")
 
                 # Press Escape to close the filter popup
                 filter_input.send_keys(Keys.ESCAPE)
                 print("Pressed Escape to close filter")
 
-                # Wait for fitness slots to load and be interactive
+                # Wait for slots to load and be interactive
                 wait.until(EC.presence_of_element_located(
                     (By.XPATH, "//div[@data-test-id='bookable-slot-list']")))
-                print("Fitness slots loaded")
+                print(f"{location} slots loaded")
 
                 # Try to ensure the page is in a stable state
                 driver.execute_script("window.scrollTo(0, 0)")  # Scroll to top
@@ -500,7 +525,7 @@ class BookingGUI:
     def __init__(self):
         self.root = tk.Tk()
         self.root.title("Fitness Slot Booking")
-        self.root.geometry("500x700")
+        self.root.geometry("500x750")
 
         # Date Selection
         self.cal = Calendar(self.root,
@@ -508,6 +533,17 @@ class BookingGUI:
                             maxdate=datetime.now().replace(month=datetime.now().month + 3),
                             date_pattern='y-mm-dd')
         self.cal.pack(pady=20)
+
+        # Location Selection
+        location_frame = ttk.LabelFrame(self.root, text="Location")
+        location_frame.pack(pady=10, padx=10, fill="x")
+
+        self.location = tk.StringVar(value="Fitness")
+        locations = [("Fitness", "Fitness"), ("X1", "X1"), ("X3", "X3")]
+        
+        for loc_value, loc_text in locations:
+            ttk.Radiobutton(location_frame, text=loc_text, 
+                           variable=self.location, value=loc_value).pack(side=tk.LEFT, padx=10)
 
         # Add retry interval control
         retry_frame = ttk.LabelFrame(self.root, text="Retry Settings")
@@ -653,7 +689,7 @@ class BookingGUI:
 
         # Start the booking process with prioritized times
         try:
-            if login_x(target_date, self.selected_times, self.retry_interval.get()):
+            if login_x(target_date, self.selected_times, self.retry_interval.get(), self.location.get()):
                 self.status_label.config(text="Booking completed!")
                 self.book_button.state(['!disabled'])
             else:
@@ -697,6 +733,9 @@ def main():
                         help='Comma-separated list of times')
     parser.add_argument('--interval', type=int, required=True,
                         help='Retry interval in seconds')
+    parser.add_argument('--location', type=str, default='Fitness',
+                        choices=['Fitness', 'X1', 'X3'],
+                        help='Location to book (default: Fitness)')
 
     args = parser.parse_args()
 
@@ -707,7 +746,7 @@ def main():
     desired_times = args.times.split(',')
 
     # Run in headless mode
-    return login_x(target_date, desired_times, args.interval)
+    return login_x(target_date, desired_times, args.interval, args.location)
 
 
 if __name__ == '__main__':

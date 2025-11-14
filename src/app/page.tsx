@@ -10,6 +10,7 @@ export default function Home() {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [selectedTimes, setSelectedTimes] = useState<string[]>([]);
   const [retryInterval, setRetryInterval] = useState<number>(300);
+  const [location, setLocation] = useState<string>('Fitness');
   const [status, setStatus] = useState<string>('');
   const [isBooking, setIsBooking] = useState<boolean>(false);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -25,6 +26,7 @@ export default function Home() {
           date: selectedDate,
           times: selectedTimes,
           interval: retryInterval,
+          location: location,
         }),
       });
 
@@ -79,6 +81,25 @@ export default function Home() {
               selectedDate={selectedDate} 
               onDateChange={setSelectedDate} 
             />
+          </div>
+
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-lg font-semibold mb-4">Location</h2>
+            <div className="flex gap-4">
+              {['Fitness', 'X1', 'X3'].map((loc) => (
+                <label key={loc} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="location"
+                    value={loc}
+                    checked={location === loc}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-4 h-4 text-blue-600"
+                  />
+                  <span className="text-gray-700">{loc}</span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="bg-white p-6 rounded-lg shadow">

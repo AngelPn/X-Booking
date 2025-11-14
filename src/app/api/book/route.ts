@@ -6,7 +6,7 @@ const execPromise = promisify(exec);
 
 export async function POST(request: Request) {
   try {
-    const { date, times, interval } = await request.json();
+    const { date, times, interval, location } = await request.json();
 
     // Format date for Python script
     const formattedDate = new Date(date).toISOString().split('T')[0];
@@ -14,14 +14,17 @@ export async function POST(request: Request) {
     // Convert times array to comma-separated string
     const timesList = times.join(',');
 
-    console.log(`Executing: python main.py --date "${formattedDate}" --times "${timesList}" --interval ${interval}`);
+    // Default to Fitness if not specified
+    const bookingLocation = location || 'Fitness';
+
+    console.log(`Executing: python main.py --date "${formattedDate}" --times "${timesList}" --interval ${interval} --location ${bookingLocation}`);
 
     let stdout = '';
     let stderr = '';
     try {
       // Execute Python script with parameters
       ({ stdout, stderr } = await execPromise(
-        `python main.py --date "${formattedDate}" --times "${timesList}" --interval ${interval}`
+        `python main.py --date "${formattedDate}" --times "${timesList}" --interval ${interval} --location ${bookingLocation}`
       ))
     }
     catch (error) {

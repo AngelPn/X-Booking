@@ -91,16 +91,16 @@
 
 ### 4.2: Extend booking capabilities for X1 & X3
 
-- [ ] Add location parameter to login_x() function (default='X')
-- [ ] Update filter logic to handle different locations:
-  - [ ] X: tagCheckbox28 (Fitness)
-  - [ ] X1: (find correct checkbox ID)
-  - [ ] X3: (find correct checkbox ID)
-- [ ] Add location dropdown to Calendar.tsx
-- [ ] Update API route to accept location parameter
-- [ ] Add location selector to main UI (page.tsx)
-- [ ] Test booking at all three locations
-- [ ] **COMMIT**: `feat: add support for X1 and X3 fitness locations`
+- [x] Add location parameter to login_x() function (default='Fitness')
+- [x] Update filter logic to handle different locations:
+  - [x] Fitness: tagCheckbox28 (Fitness)
+  - [x] X1: tagCheckbox147
+  - [x] X3: tagCheckbox149
+- [x] Add location dropdown to main UI (page.tsx)
+- [x] Update API route to accept location parameter
+- [x] Add location selector to CLI arguments
+- [x] Test: Verify argument parsing works correctly
+- [x] **COMMIT**: `feat: add support for X1 and X3 fitness locations`
 
 ## Phase 5: Multi-Booking Mode
 
@@ -207,6 +207,6 @@
 
 ## Current Status
 
-**Phase**: 4.1 - Update date picker selector and error handling (COMPLETE)  
-**Last Commit**: 488fddb - feat: add robust browser cleanup and improve authentication & success detection  
-**Next Step**: Start Phase 4.2 (extend booking for X1 & X3)
+**Phase**: 4.2 - Extend booking capabilities for X1 & X3 (COMPLETE)  
+**Last Commit**: (pending) - feat: add support for X1 and X3 fitness locations  
+**Next Step**: Test booking at all three locations and commit changes

@@ -15,14 +15,14 @@ fi
 
 echo "✓ Poetry found"
 
-# Check if npm is installed
-if ! command -v npm &> /dev/null; then
-    echo "Error: npm is not installed."
-    echo "Please install Node.js and npm: https://nodejs.org/"
+# Check if Bun is installed
+if ! command -v bun &> /dev/null; then
+    echo "Error: Bun is not installed."
+    echo "Please install Bun: https://bun.sh/"
     exit 1
 fi
 
-echo "✓ npm found"
+echo "✓ Bun found"
 
 # Install Python dependencies
 echo ""
@@ -31,15 +31,15 @@ poetry install
 
 # Install Node.js dependencies
 echo ""
-echo "Installing Node.js dependencies with npm..."
-npm install
+echo "Installing Node.js dependencies with Bun..."
+bun install
 
 # Start the development server
 echo ""
 echo "Starting development server..."
 echo "Press Ctrl+C to stop"
 echo ""
-npm run dev
+bun run dev
 
 # Check if environment exists
 if ! conda env list | grep -q "^$ENV_NAME "; then

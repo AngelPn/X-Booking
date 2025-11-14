@@ -14,13 +14,13 @@
 
 ### 1.2: Migrate from npm to Bun
 
-- [ ] Run `bun install` to install dependencies
-- [ ] Update .gitignore to exclude bun.lockb
-- [ ] Update run.sh to use Bun
-- [ ] Update run.bat to use Bun
-- [ ] Update package.json scripts if needed
-- [ ] Test: `bun run dev` and `bun run build`
-- [ ] **COMMIT**: `feat: migrate from npm to Bun for JavaScript package management`
+- [x] Run `bun install` to install dependencies
+- [x] Update .gitignore to exclude bun.lockb
+- [x] Update run.sh to use Bun
+- [x] Update run.bat to use Bun
+- [x] Update package.json scripts if needed
+- [x] Test: `bun run dev` and `bun run build`
+- [x] **COMMIT**: `feat: migrate from npm to Bun for JavaScript package management`
 
 ## Phase 2: Fix React Dependencies
 
@@ -190,6 +190,6 @@
 
 ## Current Status
 
-**Phase**: 1.2 - Migrate from npm to Bun (in progress)  
-**Last Commit**: bace48a - feat: migrate from conda to Poetry  
-**Next Step**: Complete Bun migration and commit
+**Phase**: 1.2 - Migrate from npm to Bun (COMPLETE)  
+**Last Commit**: Ready to commit Phase 1.2  
+**Next Step**: Commit Phase 1.2, then start Phase 2.1 (replace react-beautiful-dnd)

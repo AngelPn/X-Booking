@@ -15,22 +15,14 @@ if %ERRORLEVEL% NEQ 0 (
 )
 echo   [OK] Poetry found
 
-echo Checking Node.js installation...
-where node >nul 2>&1
+echo Checking Bun installation...
+where bun >nul 2>&1
 if %ERRORLEVEL% NEQ 0 (
-    echo Error: Node.js not found. Please install Node.js:
-    echo https://nodejs.org/
+    echo Error: Bun not found. Please install Bun:
+    echo https://bun.sh/
     exit /b 1
 )
-echo   [OK] Node.js found
-
-echo Checking npm installation...
-where npm >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-    echo Error: npm not found. Please install npm.
-    exit /b 1
-)
-echo   [OK] npm found
+echo   [OK] Bun found
 
 echo.
 echo Installing Python dependencies with Poetry...
@@ -41,14 +33,12 @@ if %ERRORLEVEL% NEQ 0 (
 )
 
 echo.
-echo Installing Node.js dependencies with npm...
+echo Installing Node.js dependencies with Bun...
 if exist package.json (
-    if not exist node_modules (
-        call npm install
-        if %ERRORLEVEL% NEQ 0 (
-            echo Failed to install npm dependencies
-            exit /b 1
-        )
+    call bun install
+    if %ERRORLEVEL% NEQ 0 (
+        echo Failed to install Bun dependencies
+        exit /b 1
     )
 )
 
@@ -57,6 +47,6 @@ echo Starting development server on port 8008...
 echo Press Ctrl+C to stop
 echo.
 
-call npm run dev
+call bun run dev
 
 exit /b 0

@@ -35,7 +35,7 @@ def find_chrome_binary():
     
     # Linux
     if system == "Linux":
-        # Try to get default browser first
+        # Try to get default browser using xdg-settings
         try:
             result = subprocess.run(
                 ["xdg-settings", "get", "default-web-browser"],
@@ -45,16 +45,22 @@ def find_chrome_binary():
             )
             if result.returncode == 0:
                 default_browser = result.stdout.strip().lower()
-                if "brave" in default_browser:
-                    brave_path = shutil.which("brave-browser") or shutil.which("brave")
-                    if brave_path:
-                        print(f"Using default browser: Brave ({brave_path})")
-                        return brave_path
-                elif "chrom" in default_browser:  # Matches both chrome and chromium
-                    chrome_path = shutil.which("google-chrome") or shutil.which("chromium")
-                    if chrome_path:
-                        print(f"Using default browser: Chrome/Chromium ({chrome_path})")
-                        return chrome_path
+                
+                # Map .desktop files to binaries
+                browser_map = {
+                    "brave-browser.desktop": ("brave-browser", "Brave"),
+                    "brave.desktop": ("brave-browser", "Brave"),
+                    "chromium-browser.desktop": ("chromium-browser", "Chromium"),
+                    "chromium.desktop": ("chromium-browser", "Chromium"),
+                    "google-chrome.desktop": ("google-chrome", "Google Chrome"),
+                }
+                
+                if default_browser in browser_map:
+                    binary, name = browser_map[default_browser]
+                    path = shutil.which(binary)
+                    if path:
+                        print(f"Using default browser: {name} ({path})")
+                        return path
         except (subprocess.TimeoutExpired, FileNotFoundError):
             pass
         
@@ -62,16 +68,22 @@ def find_chrome_binary():
         browsers = [
             ("brave-browser", "Brave"),
             ("brave", "Brave"),
-            ("google-chrome", "Google Chrome"),
-            ("chromium", "Chromium"),
             ("chromium-browser", "Chromium"),
+            ("chromium", "Chromium"),
+            ("google-chrome", "Google Chrome"),
         ]
         
         for binary, name in browsers:
-            path = shutil.which(binary)
-            if path:
-                print(f"Using {name} ({path})")
-                return path
+            # Check if it's an absolute path
+            if os.path.isabs(binary):
+                if os.path.exists(binary):
+                    print(f"Using {name} ({binary})")
+                    return binary
+            else:
+                path = shutil.which(binary)
+                if path:
+                    print(f"Using {name} ({path})")
+                    return path
         
         # Check Flatpak browsers
         try:
@@ -200,303 +212,284 @@ def login_x(target_date, desired_times, retry_interval):
     if browser_binary:
         chrome_options.binary_location = browser_binary
     
-    # Essential arguments for headless mode stability
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
-    chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--disable-software-rasterizer")
-    chrome_options.add_argument("--disable-extensions")
-    chrome_options.add_argument("--disable-setuid-sandbox")
-    
-    # Headless mode configuration
+    chrome_options.add_argument("--remote-debugging-port=9222")
+    # Add headless mode options
+    # new headless mode for Chrome v109+
     chrome_options.add_argument("--headless=new")
+    # Set a standard resolution
     chrome_options.add_argument("--window-size=1920,1080")
     chrome_options.add_argument("--start-maximized")
-    
-    # Additional stability options
-    chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-    chrome_options.add_argument("--no-first-run")
-    chrome_options.add_argument("--no-default-browser-check")
-    chrome_options.add_argument("--disable-background-timer-throttling")
-    chrome_options.add_argument("--disable-backgrounding-occluded-windows")
-    chrome_options.add_argument("--disable-renderer-backgrounding")
-    
-    # Set user agent to avoid detection
-    chrome_options.add_argument("--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-    
-    # Remote debugging (optional, can help with troubleshooting)
-    chrome_options.add_argument("--remote-debugging-port=9222")
+    chrome_options.add_argument("--disable-gpu")  # Recommended for headless
 
     # Initialize the webdriver with Selenium 4.6+ automatic driver management
     driver = webdriver.Chrome(options=chrome_options)
 
-    while True:
-        try:
-            # If driver is not responding, restart it
+    try:
+        while True:
             try:
-                driver.current_url
-            except Exception:
-                print("Browser seems unresponsive, restarting...")
-                driver.quit()
-                driver = webdriver.Chrome(options=chrome_options)
-
-            # Navigate to the website
-            print("Navigating to x.tudelft.nl...")
-            driver.get('https://x.tudelft.nl')
-
-            # Wait for page to load
-            wait = WebDriverWait(driver, 20)
-            time.sleep(2)  # Give the page time to load and check authentication
-            
-            # Check if already logged in by looking for authentication data in localStorage
-            try:
-                auth_data = driver.execute_script(
-                    "return localStorage.getItem('delcom_auth');"
-                )
-                if auth_data:
-                    print("Already logged in! Skipping login flow.")
-                else:
-                    print("Not logged in, proceeding with login flow...")
-                    # Wait for and click the TU Delft button
-                    print("Waiting for TU Delft button...")
+                # If driver is not responding, restart it
+                try:
+                    driver.current_url
+                except Exception:
+                    print("Browser seems unresponsive, restarting...")
                     try:
+                        driver.quit()
+                    except Exception:
+                        pass
+                    driver = webdriver.Chrome(options=chrome_options)
+
+                # Navigate to the website
+                print("Navigating to x.tudelft.nl...")
+                driver.get('https://x.tudelft.nl')
+
+                # Check if already authenticated by looking for the login page
+                print("Checking authentication status...")
+                wait = WebDriverWait(driver, 10)
+                try:
+                    # Wait a moment for page to load
+                    time.sleep(2)
+                    
+                    # Check if we're on the login page
+                    current_url = driver.current_url
+                    login_heading = driver.find_elements(By.CSS_SELECTOR, "h1[data-test-id='login-page-header']")
+                    
+                    if not login_heading and '/pages/login' not in current_url:
+                        print("Already authenticated (no login page), skipping login...")
+                    else:
+                        # Need to log in
+                        print("Not authenticated, proceeding with login...")
+                        # Wait for and click the TU Delft button
+                        print("Waiting for TU Delft button...")
                         tu_delft_button = wait.until(EC.element_to_be_clickable(
                             (By.CSS_SELECTOR, "button[data-test-id='oidc-login-button']")))
                         print("Found TU Delft button")
                         tu_delft_button.click()
                         print("Clicked TU Delft button")
-                    except Exception as e:
-                        print(f"Error with TU Delft button: {str(e)}")
-                        # Let's try to print the page source to see what's actually there
-                        print("Current page HTML:")
-                        # Print first 500 chars of page source
-                        print(driver.page_source[:500])
-                        raise  # Re-raise the exception to trigger our retry logic
 
-                    # Select "Delft University of Technology" account
-                    tu_delft_account = wait.until(EC.element_to_be_clickable(
-                        (By.CSS_SELECTOR, "div[data-title='Delft University of Technology']")))
-                    tu_delft_account.click()
-                    print("Clicked TU Delft account")
-                    # Wait for login elements and login
-                    username_field = wait.until(
-                        EC.presence_of_element_located((By.ID, 'username')))
-                    password_field = driver.find_element(By.ID, 'password')
+                        # Select "Delft University of Technology" account
+                        tu_delft_account = wait.until(EC.element_to_be_clickable(
+                            (By.CSS_SELECTOR, "div[data-title='Delft University of Technology']")))
+                        tu_delft_account.click()
+                        print("Clicked TU Delft account")
+                        # Wait for login elements and login
+                        username_field = wait.until(
+                            EC.presence_of_element_located((By.ID, 'username')))
+                        password_field = driver.find_element(By.ID, 'password')
 
-                    username_field.send_keys(username)
-                    password_field.send_keys(password)
-                    print("Sent username and password")
-                    # Find and click login button
-                    login_button = driver.find_element(By.ID, 'submit_button')
-                    login_button.click()
-                    print("Clicked login button")
+                        username_field.send_keys(username)
+                        password_field.send_keys(password)
+                        print("Sent username and password")
+                        # Find and click login button
+                        login_button = driver.find_element(By.ID, 'submit_button')
+                        login_button.click()
+                        print("Clicked login button")
 
-                    # Wait for redirect to x.tudelft.nl after login
-                    print("Waiting for redirect to x.tudelft.nl...")
-                    wait.until(lambda d: 'x.tudelft.nl' in d.current_url)
-                    print(f"Redirected to: {driver.current_url}")
-            except Exception as e:
-                print(f"Error checking/performing login: {str(e)}")
-                raise
+                        # Wait for redirect to x.tudelft.nl after login
+                        print("Waiting for redirect to x.tudelft.nl...")
+                        wait.until(lambda d: 'x.tudelft.nl' in d.current_url)
+                        print(f"Redirected to: {driver.current_url}")
+                except Exception as e:
+                    print(f"Error during authentication check/login: {str(e)}")
+                    raise
 
-            # Wait for date picker to be present and interactable
-            # Updated selector to match the actual form control
-            date_picker = wait.until(
-                EC.presence_of_element_located(
-                    (By.CSS_SELECTOR, "input[type='date'].form-control"))
-            )
-            # Wait until it's not disabled/readonly
-            wait.until(lambda d: date_picker.get_attribute("readonly") is None)
-
-            # Set the date value using JavaScript to ensure correct format
-            driver.execute_script(
-                "arguments[0].value = arguments[1]",
-                date_picker,
-                date_str
-            )
-            print(f"Set date to {date_str}")
-
-            # Trigger change event to ensure the page updates
-            driver.execute_script(
-                "arguments[0].dispatchEvent(new Event('change', { 'bubbles': true }))",
-                date_picker
-            )
-            print(f"Date change event dispatched")
-
-            # Wait for the page to update with the new date
-            time.sleep(1)
-
-            # Type "Fitness" into the filter input
-            filter_input = wait.until(
-                EC.presence_of_element_located((By.ID, 'tag-filterinput')))
-            filter_input.clear()
-            filter_input.send_keys("Fitness")
-            print("Sent Fitness")
-
-            # Select the Fitness checkbox
-            fitness_checkbox = wait.until(
-                EC.element_to_be_clickable((By.ID, 'tagCheckbox28')))
-            fitness_checkbox.click()
-            print("Clicked Fitness checkbox")
-
-            # Press Escape to close the filter popup
-            filter_input.send_keys(Keys.ESCAPE)
-            print("Pressed Escape to close filter")
-
-            # Wait for fitness slots to load and be interactive
-            wait.until(EC.presence_of_element_located(
-                (By.XPATH, "//div[@data-test-id='bookable-slot-list']")))
-            print("Fitness slots loaded")
-
-            # Try to ensure the page is in a stable state
-            driver.execute_script("window.scrollTo(0, 0)")  # Scroll to top
-            time.sleep(1)  # Let the page settle
-
-            # Look for slots matching desired times in order
-            for desired_time in desired_times:
-                print(f"Trying to book slot for {desired_time}")
-                # Find all slots for this time
-                time_slots = driver.find_elements(
-                    By.XPATH,
-                    f"//p[@data-test-id='bookable-slot-start-time'][.//strong[contains(text(), '{desired_time}')]]"
+                # Wait for date picker to be present and interactable
+                # Updated selector to match the actual form control
+                date_picker = wait.until(
+                    EC.presence_of_element_located(
+                        (By.CSS_SELECTOR, "input[type='date'].form-control"))
                 )
-                print(f"Found {len(time_slots)} slots for {desired_time}")
+                # Wait until it's not disabled/readonly
+                wait.until(lambda d: date_picker.get_attribute("readonly") is None)
 
-                # For each time slot, find its parent container and check if it's available
-                available_slots = [
-                    slot.find_element(
-                        By.XPATH, "ancestor::div[@data-test-id='bookable-slot-list']")
-                    for slot in time_slots
-                    if not (
-                        'opacity-50' in slot.find_element(
-                            By.XPATH, "ancestor::div[@data-test-id='bookable-slot-list']").get_attribute('class')
-                        or slot.find_element(By.XPATH, "ancestor::div[@data-test-id='bookable-slot-list']").find_elements(By.XPATH, ".//div[@data-test-id='bookable-slot-spots-full']")
+                # Set the date value using JavaScript to ensure correct format
+                driver.execute_script(
+                    "arguments[0].value = arguments[1]",
+                    date_picker,
+                    date_str
+                )
+                print(f"Set date to {date_str}")
+
+                # Trigger change event to ensure the page updates
+                driver.execute_script(
+                    "arguments[0].dispatchEvent(new Event('change', { 'bubbles': true }))",
+                    date_picker
+                )
+                print(f"Date change event dispatched")
+
+                # Wait for the page to update with the new date
+                time.sleep(1)
+
+                # Type "Fitness" into the filter input
+                filter_input = wait.until(
+                    EC.presence_of_element_located((By.ID, 'tag-filterinput')))
+                filter_input.clear()
+                filter_input.send_keys("Fitness")
+                print("Sent Fitness")
+
+                # Select the Fitness checkbox
+                fitness_checkbox = wait.until(
+                    EC.element_to_be_clickable((By.ID, 'tagCheckbox28')))
+                fitness_checkbox.click()
+                print("Clicked Fitness checkbox")
+
+                # Press Escape to close the filter popup
+                filter_input.send_keys(Keys.ESCAPE)
+                print("Pressed Escape to close filter")
+
+                # Wait for fitness slots to load and be interactive
+                wait.until(EC.presence_of_element_located(
+                    (By.XPATH, "//div[@data-test-id='bookable-slot-list']")))
+                print("Fitness slots loaded")
+
+                # Try to ensure the page is in a stable state
+                driver.execute_script("window.scrollTo(0, 0)")  # Scroll to top
+                time.sleep(1)  # Let the page settle
+
+                # Look for slots matching desired times in order
+                for desired_time in desired_times:
+                    print(f"Trying to book slot for {desired_time}")
+                    # Find all slots for this time
+                    time_slots = driver.find_elements(
+                        By.XPATH,
+                        f"//p[@data-test-id='bookable-slot-start-time'][.//strong[contains(text(), '{desired_time}')]]"
                     )
-                ]
-                print(
-                    f"Found {len(available_slots)} available slots for {desired_time}")
+                    print(f"Found {len(time_slots)} slots for {desired_time}")
 
-                if available_slots:
-                    try:
-                        # Find and click the book button within the slot container
-                        book_button = wait.until(EC.element_to_be_clickable(available_slots[0].find_element(
-                            By.XPATH,
-                            ".//button[@data-test-id='bookable-slot-book-button']"
-                        )))
-                        print("Found book button")
+                    # For each time slot, find its parent container and check if it's available
+                    available_slots = [
+                        slot.find_element(
+                            By.XPATH, "ancestor::div[@data-test-id='bookable-slot-list']")
+                        for slot in time_slots
+                        if not (
+                            'opacity-50' in slot.find_element(
+                                By.XPATH, "ancestor::div[@data-test-id='bookable-slot-list']").get_attribute('class')
+                            or slot.find_element(By.XPATH, "ancestor::div[@data-test-id='bookable-slot-list']").find_elements(By.XPATH, ".//div[@data-test-id='bookable-slot-spots-full']")
+                        )
+                    ]
+                    print(
+                        f"Found {len(available_slots)} available slots for {desired_time}")
 
-                        # Try to ensure no overlays are present
-                        driver.execute_script(
-                            "arguments[0].scrollIntoView({block: 'center'});", book_button)
-                        time.sleep(1)  # Wait for any overlays to clear
-
-                        # Try clicking via JavaScript if regular click fails
+                    if available_slots:
                         try:
-                            book_button.click()
-                        except:
+                            # Find and click the book button within the slot container
+                            book_button = wait.until(EC.element_to_be_clickable(available_slots[0].find_element(
+                                By.XPATH,
+                                ".//button[@data-test-id='bookable-slot-book-button']"
+                            )))
+                            print("Found book button")
+
+                            # Try to ensure no overlays are present
                             driver.execute_script(
-                                "arguments[0].click();", book_button)
-                        print("Clicked book button")
+                                "arguments[0].scrollIntoView({block: 'center'});", book_button)
+                            time.sleep(1)  # Wait for any overlays to clear
 
-                        # Wait for and click the confirm booking button
-                        confirm_button = wait.until(EC.element_to_be_clickable(
-                            (By.XPATH,
-                             "//button[@data-test-id='details-book-button']")
-                        ))
+                            # Try clicking via JavaScript if regular click fails
+                            try:
+                                book_button.click()
+                            except:
+                                driver.execute_script(
+                                    "arguments[0].click();", book_button)
+                            print("Clicked book button")
 
-                        # Scroll the confirm button to the middle of the viewport
-                        driver.execute_script("""
-                            var element = arguments[0];
-                            var elementRect = element.getBoundingClientRect();
-                            var absoluteElementTop = elementRect.top + window.pageYOffset;
-                            var middle = absoluteElementTop - (window.innerHeight / 2);
-                            window.scrollTo(0, middle);
-                        """, confirm_button)
+                            # Wait for and click the confirm booking button
+                            confirm_button = wait.until(EC.element_to_be_clickable(
+                                (By.XPATH,
+                                 "//button[@data-test-id='details-book-button']")
+                            ))
 
-                        confirm_button.click()
-                        print("Clicked confirm button")
+                            # Scroll the confirm button to the middle of the viewport
+                            driver.execute_script("""
+                                var element = arguments[0];
+                                var elementRect = element.getBoundingClientRect();
+                                var absoluteElementTop = elementRect.top + window.pageYOffset;
+                                var middle = absoluteElementTop - (window.innerHeight / 2);
+                                window.scrollTo(0, middle);
+                            """, confirm_button)
 
-                        # Wait for and verify the booking success message
-                        # Check for the success icon with data-test-id="booking-success"
-                        try:
-                            success_icon = wait.until(
-                                EC.visibility_of_element_located((By.XPATH, "//i[@data-test-id='booking-success']"))
-                            )
-                            
-                            # Also verify the heading text for extra confirmation
-                            success_heading = wait.until(
-                                EC.presence_of_element_located((By.XPATH, "//h4[contains(@class, 'text-success') and contains(text(), 'Booking was made')]"))
-                            )
-                            
-                            print(f"✓ Successfully booked a slot for {desired_time}!")
-                            print("Booking confirmed: 'Booking was made' message displayed")
-                            driver.quit()
-                            return True
-                        except TimeoutException:
-                            print("Booking failed: Success message not found within timeout period")
-                            continue
+                            confirm_button.click()
+                            print("Clicked confirm button")
+
+                            # Wait for and verify the booking success message
+                            try:
+                                # Wait for the success icon to appear
+                                wait.until(
+                                    EC.visibility_of_element_located((By.XPATH, "//i[@data-test-id='booking-success']"))
+                                )
+                                # Check for the heading text "Booking was made"
+                                success_heading = driver.find_element(By.XPATH, "//h4[contains(text(), 'Booking was made')]")
+                                if success_heading.is_displayed():
+                                    print(f"Successfully booked a slot for {desired_time}!")
+                                    return True
+                                else:
+                                    print(f"Booking failed: Success heading not visible")
+                                    continue
+                            except TimeoutException:
+                                print("Booking failed: Success message not found within timeout period")
+                                continue
+                            except Exception as e:
+                                print(f"Booking verification failed: {str(e)}")
+                                continue
+
                         except Exception as e:
-                            print(f"Booking verification failed: {str(e)}")
+                            print(f"Error booking {desired_time}: {str(e)}")
                             continue
+                    else:
+                        print(f"No available slots for {desired_time}")
 
-                    except Exception as e:
-                        print(f"Error booking {desired_time}: {str(e)}")
-                        continue
+                print(
+                    f"No slots available at any of the desired times. Trying again in {retry_interval} seconds...")
+                raise NoAvailableSlotsError(
+                    "No slots available at any of the desired times")
+
+            except Exception as e:
+                if isinstance(e, NoAvailableSlotsError):
+                    print(f"No available slots: {str(e)}")
+                    return False
                 else:
-                    print(f"No available slots for {desired_time}")
-
-            print(
-                f"No slots available at any of the desired times. Trying again in {retry_interval} seconds...")
-            raise NoAvailableSlotsError(
-                "No slots available at any of the desired times")
-
+                    # Enhanced error logging
+                    print("=" * 80)
+                    print(f"ERROR OCCURRED: {str(e)}")
+                    print("=" * 80)
+                    print("\nFull traceback:")
+                    traceback.print_exc()
+                    print("\n" + "=" * 80)
+                    
+                    # Get current URL for debugging
+                    try:
+                        current_url = driver.current_url
+                        print(f"Current URL: {current_url}")
+                    except Exception:
+                        print("Could not retrieve current URL")
+                    
+                    # Save screenshot to project directory
+                    try:
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        screenshot_path = f"booking_error_{timestamp}.png"
+                        driver.save_screenshot(screenshot_path)
+                        print(f"Screenshot saved to: {os.path.abspath(screenshot_path)}")
+                    except Exception as screenshot_error:
+                        print(f"Could not save screenshot: {screenshot_error}")
+                    
+                    # Save HTML dump to project directory
+                    try:
+                        html_path = f"booking_error_{timestamp}.html"
+                        with open(html_path, 'w', encoding='utf-8') as f:
+                            f.write(driver.page_source)
+                        print(f"HTML dump saved to: {os.path.abspath(html_path)}")
+                    except Exception as html_error:
+                        print(f"Could not save HTML dump: {html_error}")
+                    
+                    print("=" * 80)
+                    return False
+    finally:
+        # Always cleanup the browser, even if an exception occurs
+        print("Cleaning up browser session...")
+        try:
+            driver.quit()
         except Exception as e:
-            if isinstance(e, NoAvailableSlotsError):
-                print(f"No available slots: {str(e)}")
-                driver.quit()
-                return False
-            else:
-                # Enhanced error logging
-                print("=" * 80)
-                print(f"ERROR OCCURRED: {str(e)}")
-                print("=" * 80)
-                print("\nFull traceback:")
-                traceback.print_exc()
-                print("\n" + "=" * 80)
-                
-                # Get current URL for debugging
-                try:
-                    current_url = driver.current_url
-                    print(f"Current URL: {current_url}")
-                except Exception:
-                    print("Could not retrieve current URL")
-                
-                # Save screenshot to project directory
-                try:
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    screenshot_path = f"booking_error_{timestamp}.png"
-                    driver.save_screenshot(screenshot_path)
-                    print(f"Screenshot saved to: {os.path.abspath(screenshot_path)}")
-                except Exception as screenshot_error:
-                    print(f"Could not save screenshot: {screenshot_error}")
-                
-                # Save HTML dump to project directory
-                try:
-                    html_path = f"booking_error_{timestamp}.html"
-                    with open(html_path, 'w', encoding='utf-8') as f:
-                        f.write(driver.page_source)
-                    print(f"HTML dump saved to: {os.path.abspath(html_path)}")
-                except Exception as html_error:
-                    print(f"Could not save HTML dump: {html_error}")
-                
-                print("=" * 80)
-                
-            try:
-                driver.quit()
-            except Exception:
-                pass
-
-            return False
+            print(f"Error during browser cleanup: {e}")
 
 
 class NoAvailableSlotsError(Exception):

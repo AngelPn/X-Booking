@@ -82,6 +82,12 @@
 - [x] Fix "session not created: unable to connect to renderer" error
 - [x] Add stability options: disable-blink-features, disable-software-rasterizer, etc.
 - [x] **COMMIT**: `fix: improve headless Chrome stability with additional options`
+- [x] Add try-finally block for guaranteed browser cleanup on crash/error
+- [x] Fix authentication check to detect login page properly (h1 + URL check)
+- [x] Fix success detection to check h4 heading instead of empty icon element
+- [x] Improve default browser detection with xdg-settings and .desktop mapping
+- [x] Test: Verify browser cleanup, auth detection, and success detection
+- [x] **COMMIT**: `feat: add robust browser cleanup and improve authentication & success detection`
 
 ### 4.2: Extend booking capabilities for X1 & X3
 
@@ -202,5 +208,5 @@
 ## Current Status
 
 **Phase**: 4.1 - Update date picker selector and error handling (COMPLETE)  
-**Last Commit**: 7341c03 - fix: enhance booking success verification with heading text check  
+**Last Commit**: 488fddb - feat: add robust browser cleanup and improve authentication & success detection  
 **Next Step**: Start Phase 4.2 (extend booking for X1 & X3)

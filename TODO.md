@@ -102,6 +102,17 @@
 - [x] Test: Verify argument parsing works correctly
 - [x] **COMMIT**: `feat: add support for X1 and X3 fitness locations`
 
+### 4.3: Fix BookingClient V2 API Implementation
+
+- [x] Research X booking API structure via network inspection
+- [x] Identify correct `/participations` endpoint payload structure
+- [x] Fix create_booking payload to include `bookingId` in main payload (not params)
+- [x] Add nested `params` object with times and product IDs
+- [x] Update method signature to accept start/end times and linked product ID
+- [x] Test complete workflow: login → get bookings → get slots → create → cancel
+- [x] Verify booking count changes correctly (increment/decrement)
+- [x] **COMMIT**: `fix: correct /participations API payload structure for booking creation`
+
 ## Phase 5: Multi-Booking Mode
 
 ### 5.1: Implement multi-booking infrastructure
@@ -298,6 +309,18 @@
 
 ## Current Status
 
-**Phase**: 4.2 - Extend booking capabilities for X1 & X3 (COMPLETE)  
-**Last Commit**: (pending) - feat: add support for X1 and X3 fitness locations  
-**Next Step**: Test booking at all three locations and commit changes
+**Phase**: 4.3 - Fix BookingClient V2 API Implementation (COMPLETE)  
+**Last Commit**: (pending) - `fix: correct /participations API payload structure for booking creation`  
+**Next Step**: Commit the API fix and proceed to Phase 5 (Multi-Booking Mode)
+
+**Achievement**: 🎉 Complete booking workflow now functional! Successfully tested:
+- ✅ OIDC login with Bearer token authentication
+- ✅ Get current bookings with correct count
+- ✅ Get available slots from /bookable-slots endpoint
+- ✅ **Create booking with correct payload structure** (bookingId + params + memberId)
+- ✅ Verify booking created (count increased)
+- ✅ Cancel booking via /participations DELETE
+- ✅ Verify booking cancelled (count decreased)
+
+**Key Fix**: The `/participations` POST endpoint requires `bookingId` in the main payload object, along with a nested `params` object containing times and product IDs. The `memberId` must be an integer, not a string.
+

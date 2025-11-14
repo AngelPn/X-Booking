@@ -10,7 +10,8 @@ dependencies = [
     "numpy>=1.26.0",
     "tkcalendar>=1.6.0",
     "sqlalchemy (>=2.0.44,<3.0.0)",
-    "alembic (>=1.17.1,<2.0.0)"
+    "alembic (>=1.17.1,<2.0.0)",
+    "requests>=2.31.0"
 ]
 
 [[project.authors]]

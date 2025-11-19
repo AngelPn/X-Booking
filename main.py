@@ -196,7 +196,7 @@ def login_x(target_date, desired_times, retry_interval, location="Fitness"):
         desired_times (list): List of times to try booking in order of preference
                             Format: ["09:00", "10:30", "12:00"]
         retry_interval: Interval to wait before retrying
-        location (str): Location to book - "Fitness", "X1", or "X2", or "X3
+        location (str): Location to book - "Fitness", "X1", "X2", or "X3"
     """
     # Format date for the date picker
     date_str = target_date.strftime("%Y-%m-%d")
